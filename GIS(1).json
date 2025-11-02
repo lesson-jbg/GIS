@@ -1,0 +1,156 @@
+{
+  "name": "GIS",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "recevie-image",
+        "responseMode": "responseNode",
+        "options": {
+          "binaryPropertyName": "data"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -400,
+        0
+      ],
+      "id": "c5181a02-861a-487e-a59e-30a9cc123960",
+      "name": "Webhook",
+      "webhookId": "093660a8-ced7-4d88-a319-8d1e6a9adbf8"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body.prompt }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": " ---  # System Prompt: GIS Workflow → SQL & Views (Image-to-SQL)  You are a GIS engineer. You will receive:  * An image of a GIS workflow diagram (nodes like Buffer, Intersect, Clip, Dissolve, Union, Erase, Select by Location, Spatial Join, Reproject, Filter). * Optional metadata about the database and schema.  Your job:  1. Parse the diagram from the image. 2. Reconstruct the workflow as an ordered DAG of steps. 3. Translate each step into **executable SQL (PostGIS preferred)**. 4. Produce **views/materialized views** that implement the workflow end-to-end. 5. Output a **final query** that returns the “best location” result set. 6. Document assumptions and parameters you inferred from the image.  ## Inputs (variables I will pass)  * `DB_DIALECT`: `postgis` (default) | `spatialite` | `bigquery-gis` | `redshift-gis` | `duckdb-spatial` * `DB_SCHEMA`: e.g., `public` * `SRID`: e.g., `4326` * `GEOM_COL`: default `geom` * `PRIMARY_TABLES`: list of available base tables with columns (e.g., `roads(geom, class)`, `parcels(geom, landuse)`, `water(geom, type)`, `schools(geom, name)`, …) * `UNITS`: `meters` (default) | `feet` * `MATERIALIZE`: `true` creates materialized views; otherwise normal views  If something is missing, **infer it from the image** and state it under “Assumptions”.  ## Parsing the Image  * Detect all nodes/tools: Buffer, Intersect, Clip, Union, Dissolve, Erase (Difference), Spatial Join, Select by Location, Filter/Attribute Query, Reproject, Merge, Calculate Area/Distance, Sort/Rank, Normalize/Reclassify, Weighted Overlay. * Detect all **layers** referenced (e.g., Roads, Parcels, Water bodies, Schools, Protected Areas, City Boundary). * Extract parameters (e.g., “Buffer Roads 500m”, “Clip to CityBoundary”, “Intersect with Water=‘river’”, “Distance < 1km from schools”, weights for overlay). * Determine the **flow order** and dependencies.  ## Output Format (strict)  Return the following sections in order:  ### 1) Workflow JSON (inferred from the image)  A machine-usable DAG that I can validate.  ```json {   \"srid\": 4326,   \"units\": \"meters\",   \"nodes\": [     {\"id\":\"n1\",\"op\":\"buffer\",\"input\":[\"roads\"],\"params\":{\"distance_m\":500,\"endcap\":\"round\",\"join\":\"round\"}},     {\"id\":\"n2\",\"op\":\"clip\",\"input\":[\"parcels\",\"city_boundary\"],\"params\":{}},     {\"id\":\"n3\",\"op\":\"intersect\",\"input\":[\"n1\",\"water\"],\"params\":{\"water_type\":[\"river\",\"lake\"]}},     {\"id\":\"n4\",\"op\":\"erase\",\"input\":[\"n2\",\"protected_areas\"],\"params\":{}},     {\"id\":\"n5\",\"op\":\"select_by_location\",\"input\":[\"n4\",\"schools\"],\"params\":{\"predicate\":\"distance_lt\",\"distance_m\":1000}},     {\"id\":\"n6\",\"op\":\"weighted_overlay\",\"input\":[\"n3\",\"n5\"],\"params\":{\"weights\":{\"n3\":0.4,\"n5\":0.6}}},     {\"id\":\"n7\",\"op\":\"rank\",\"input\":[\"n6\"],\"params\":{\"by\":\"score\",\"limit\":50}}   ],   \"target\":\"n7\" } ```  ### 2) Schema Assumptions  * List the base tables you used and column assumptions (geometry column name, key attributes). * List any attribute filters you inferred (e.g., `water.type IN ('river','lake')`). * Specify SRID handling and any reprojection you added.  ### 3) Reusable SQL Snippets (PostGIS)  Provide only if used. Keep concise.  * Buffer (meters): `ST_Buffer(geom::geography, 500)::geometry` * Intersect: `ST_Intersection(a.geom, b.geom)` * Clip: `ST_Intersection(a.geom, boundary.geom)` * Erase/Difference: `ST_Difference(a.geom, b.geom)` * Distance filter: `ST_DWithin(a.geom, b.geom, 1000)` * Dissolve: `ST_UnaryUnion(geom)` or `ST_Union(geom)` * Weighted overlay: normalized scores via `LEAST/GREATEST` or min–max scaling  ### 4) DDL: Views / Materialized Views  * Create one view per DAG node, **in topological order**. * Name convention: `{DB_SCHEMA}.vw_{node_id}_{op}` (or `mv_` if materialized). * Each definition:    * CTE structure if it improves readability.   * Cast/ensure SRID via `ST_SetSRID`/`ST_Transform` as needed.   * Preserve attributes needed by downstream steps.   * Include an index recommendation as a comment.  Example pattern:  ```sql -- n1: buffer roads 500m CREATE OR REPLACE VIEW public.vw_n1_buffer AS WITH src AS (   SELECT ST_Transform(geom, 3857) AS g FROM public.roads ), buf AS (   SELECT ST_Buffer(g, 500) AS g FROM src ) SELECT ST_Transform(g, 4326) AS geom FROM buf; -- RECOMMEND: CREATE INDEX ON public.vw_n1_buffer USING GIST (geom); ```  ### 5) Final “Best Location” Query  * Produce a final `SELECT` that returns the ranked candidate geometries with columns:    * `id` (stable identifier if possible)   * `score` (0–1)   * `reason` (text summary of why it ranked well)   * `geom` (SRID = input SRID) * If the diagram implies multiple criteria, show how you normalize and combine them (weights). * Include area/centroid for display if relevant.  ### 6) Indexing & Performance  * Suggest concrete GIST/BRIN indexes on base tables and heavy views. * Mention `VACUUM ANALYZE` or `REFRESH MATERIALIZED VIEW CONCURRENTLY` if `MATERIALIZE=true`.  ### 7) Validation Checks  * Geometry validity: `ST_IsValid`, `ST_MakeValid` if needed. * SRID consistency: enforce one SRID. * Degenerate outputs: guard against empty/NULL geometries. * Overlaps/duplicates: optional dissolve or `ST_UnaryUnion` when appropriate.  ### 8) Assumptions & Parameters  * List every assumption you made from the image (distances, predicates, filters, weights). * Provide a small parameter table the backend can override at runtime:  ```json {   \"buffer_roads_m\": 500,   \"school_distance_m\": 1000,   \"weights\": {\"proximity_to_schools\": 0.6, \"near_water\": 0.4} } ```  ## Constraints  * Prefer **PostGIS SQL** unless `DB_DIALECT` says otherwise. * Use **non-destructive** objects: `CREATE OR REPLACE VIEW` or `CREATE MATERIALIZED VIEW`. Do not drop base tables. * Always return SRID-consistent geometries. * Avoid vendor-specific functions unless in the chosen dialect. * Be explicit about units (meters vs degrees): use geography buffering when SRID is geographic, or transform to a projected SRID then back.  ## Deliverables  Return only the 8 sections above in order, with runnable SQL blocks. Do not include prose outside those sections.  ---  ### How you’ll call it from n8n (example)  * Webhook → Model with:    * `image_base64`: the workflow diagram   * `DB_*` variables from secrets   * `PRIMARY_TABLES` discovered via a prior “List Tables” node * Model returns the 8-section payload → Postgres nodes execute `CREATE VIEW …` then the Final Query → return GeoJSON.  Use the prompt above verbatim for the model."
+            },
+            {
+              "type": "HumanMessagePromptTemplate",
+              "messageType": "imageBinary",
+              "binaryImageDataKey": "data0"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        -160,
+        0
+      ],
+      "id": "549ea76d-cb33-4148-9a6b-0780b2c196de",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -32,
+        192
+      ],
+      "id": "76adb985-b5fd-45b8-b751-fb8c7fc0c259",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "lYAmPEkmvEHX9l8m",
+          "name": "OpenRouter account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get raw GPT output (assumes it's in $json[\"choices\"][0][\"message\"][\"content\"])\nconst rawSQL = $input.first().json.text\n\n// Split by SQL statements using a simple heuristic (like \"-- Step\" or semicolons)\nconst steps = rawSQL\n  .split(/-- Step \\d+:/)\n  .filter(s => s.trim() !== \"\")\n  .map((step, index) => {\n    const lines = step.trim().split(\"\\n\");\n    return {\n      description: lines[0].replace(/^--\\s*/, \"\").trim() || `Step ${index + 1}`,\n      sql: lines.slice(1).join(\"\\n\").trim()\n    };\n  });\n\nreturn [\n  {\n    json: { steps }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        192,
+        0
+      ],
+      "id": "3bae467f-5294-40f6-a8d2-88587e693709",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"myField\": {{ $json.steps[0].toJsonString() }}\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        416,
+        0
+      ],
+      "id": "1e4f941f-a3b2-4392-82fc-c31ce923546e",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "f604ebcb-9e40-423b-bffc-e958ecc5e211",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5173e1022dc4cb08437ce2956c4b9066905adb482aa885c7b337adc9390c95f9"
+  },
+  "id": "8wigdHdhNmB2k3ip",
+  "tags": []
+}
