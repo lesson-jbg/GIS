@@ -1,0 +1,1393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GIS Workflow Analyzer</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --color-1: #3A4E3C;
+            --color-2: #5A5A40;
+            --color-3: #6C7850;
+            --color-4: #A1B18A;
+            --color-5: #DAD7CD;
+            --bg-dark: #2a3329;
+            --text-light: #f5f5f0;
+            --text-muted: #c5c5b8;
+            --success: #7cb342;
+            --error: #e57373;
+            --shadow: rgba(0, 0, 0, 0.3);
+        }
+
+        body {
+            font-family: 'Inter', 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, var(--color-1) 0%, var(--color-2) 50%, var(--color-3) 100%);
+            color: var(--text-light);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Animated Background Patterns */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 20% 50%, rgba(161, 177, 138, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(108, 120, 80, 0.1) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .content-wrapper {
+            position: relative;
+            z-index: 1;
+            flex: 1;
+        }
+
+        /* Header Styles */
+        header {
+            background: linear-gradient(135deg, var(--color-1), var(--color-2));
+            border-bottom: 3px solid var(--color-4);
+            box-shadow: 0 4px 20px var(--shadow);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+        }
+
+        .header-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px 30px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .logo {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, var(--color-3), var(--color-4));
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            color: white;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .logo::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            transform: rotate(45deg);
+            animation: shine 3s infinite;
+        }
+
+        @keyframes shine {
+            0%, 100% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+            50% { transform: translateX(100%) translateY(100%) rotate(45deg); }
+        }
+
+        .brand-info h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--text-light);
+            margin-bottom: 5px;
+            letter-spacing: -0.5px;
+        }
+
+        .brand-info p {
+            font-size: 14px;
+            color: var(--color-5);
+            opacity: 0.9;
+        }
+
+        .nav-menu {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .nav-btn {
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: var(--text-light);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        .nav-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .status-indicator {
+            padding: 8px 16px;
+            background: var(--color-3);
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border: 1px solid var(--color-4);
+        }
+
+        .status-indicator i {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Main Container */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px 30px;
+        }
+
+        /* Hero Section */
+        .hero-section {
+            text-align: center;
+            margin-bottom: 50px;
+            padding: 60px 20px;
+            background: linear-gradient(135deg, rgba(58, 78, 60, 0.4), rgba(90, 90, 64, 0.4));
+            border-radius: 20px;
+            border: 1px solid rgba(161, 177, 138, 0.3);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px var(--shadow);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-section::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(161, 177, 138, 0.1) 0%, transparent 70%);
+            animation: rotate 20s linear infinite;
+        }
+
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero-section h2 {
+            font-size: 42px;
+            font-weight: 700;
+            margin-bottom: 15px;
+            background: linear-gradient(135deg, var(--color-5), var(--color-4));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero-section p {
+            font-size: 18px;
+            color: var(--color-5);
+            max-width: 700px;
+            margin: 0 auto 30px;
+            line-height: 1.6;
+        }
+
+        .stats-row {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin-top: 30px;
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 36px;
+            font-weight: 700;
+            color: var(--color-4);
+            display: block;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Main Content Grid */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .card {
+            background: linear-gradient(135deg, rgba(58, 78, 60, 0.6), rgba(90, 90, 64, 0.6));
+            border-radius: 20px;
+            padding: 35px;
+            border: 1px solid rgba(161, 177, 138, 0.3);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px var(--shadow);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, var(--color-3), var(--color-4), var(--color-3));
+            background-size: 200% 100%;
+            animation: gradient-shift 3s ease infinite;
+        }
+
+        @keyframes gradient-shift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px var(--shadow);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid rgba(161, 177, 138, 0.3);
+        }
+
+        .card-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, var(--color-3), var(--color-4));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            color: white;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .card-title {
+            font-size: 22px;
+            font-weight: 600;
+            color: var(--text-light);
+        }
+
+        /* Upload Zone */
+        .upload-zone {
+            border: 3px dashed var(--color-4);
+            border-radius: 16px;
+            padding: 80px 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: rgba(161, 177, 138, 0.05);
+            position: relative;
+        }
+
+        .upload-zone::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 16px;
+            padding: 3px;
+            background: linear-gradient(45deg, var(--color-3), var(--color-4));
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .upload-zone:hover::before {
+            opacity: 1;
+        }
+
+        .upload-zone:hover {
+            background: rgba(161, 177, 138, 0.1);
+            transform: scale(1.02);
+        }
+
+        .upload-zone.dragover {
+            border-color: var(--success);
+            background: rgba(124, 179, 66, 0.1);
+            transform: scale(1.02);
+        }
+
+        .upload-icon {
+            font-size: 60px;
+            color: var(--color-4);
+            margin-bottom: 20px;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .upload-text {
+            font-size: 20px;
+            margin-bottom: 10px;
+            color: var(--text-light);
+            font-weight: 600;
+        }
+
+        .upload-hint {
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .preview-container {
+            margin-top: 25px;
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .preview-image {
+            width: 100%;
+            max-height: 450px;
+            object-fit: contain;
+            border-radius: 12px;
+            border: 2px solid var(--color-4);
+            box-shadow: 0 8px 24px var(--shadow);
+        }
+
+        .file-info {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 18px;
+            background: rgba(58, 78, 60, 0.5);
+            border-radius: 12px;
+            margin-top: 20px;
+            border: 1px solid rgba(161, 177, 138, 0.3);
+        }
+
+        .file-details {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 14px 32px;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .btn:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        .btn > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--color-3), var(--color-4));
+            color: white;
+            box-shadow: 0 4px 15px rgba(108, 120, 80, 0.4);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 25px rgba(108, 120, 80, 0.5);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-light);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 50px;
+        }
+
+        .spinner {
+            width: 60px;
+            height: 60px;
+            border: 5px solid rgba(161, 177, 138, 0.2);
+            border-top-color: var(--color-4);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .results-container {
+            display: none;
+        }
+
+        .result-section {
+            margin-bottom: 30px;
+        }
+
+        .result-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 15px;
+            color: var(--color-4);
+            font-weight: 600;
+            font-size: 18px;
+        }
+
+        .code-block {
+            background: rgba(42, 51, 41, 0.8);
+            border: 1px solid var(--color-4);
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            position: relative;
+            overflow-x: auto;
+            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .code-block pre {
+            margin: 0;
+            font-family: 'Fira Code', 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.8;
+            color: #a8e6cf;
+        }
+
+        .copy-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: var(--color-3);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .copy-btn:hover {
+            background: var(--color-4);
+            transform: scale(1.05);
+        }
+
+        .analysis-text {
+            background: rgba(42, 51, 41, 0.6);
+            border-left: 4px solid var(--color-4);
+            padding: 25px;
+            border-radius: 12px;
+            line-height: 1.8;
+            color: var(--color-5);
+        }
+
+        .alert {
+            padding: 18px 25px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            display: none;
+            align-items: center;
+            gap: 15px;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(-20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .alert-error {
+            background: rgba(229, 115, 115, 0.15);
+            border: 1px solid var(--error);
+            color: #ff8a80;
+        }
+
+        .alert-success {
+            background: rgba(124, 179, 66, 0.15);
+            border: 1px solid var(--success);
+            color: #aed581;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 80px 30px;
+            color: var(--text-muted);
+        }
+
+        .empty-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+            opacity: 0.3;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        /* Prompt Section Styles */
+        .prompt-section {
+            margin-top: 25px;
+            padding: 25px;
+            background: rgba(58, 78, 60, 0.3);
+            border-radius: 12px;
+            border: 1px solid rgba(161, 177, 138, 0.3);
+            animation: fadeIn 0.5s ease;
+        }
+
+        .prompt-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+            color: var(--color-4);
+            font-weight: 600;
+            font-size: 16px;
+        }
+
+        .prompt-header i {
+            font-size: 18px;
+        }
+
+        .prompt-input-wrapper {
+            position: relative;
+        }
+
+        #userPrompt {
+            width: 100%;
+            padding: 15px;
+            background: rgba(42, 51, 41, 0.6);
+            border: 2px solid rgba(161, 177, 138, 0.3);
+            border-radius: 10px;
+            color: var(--text-light);
+            font-size: 14px;
+            font-family: inherit;
+            resize: vertical;
+            min-height: 100px;
+            transition: all 0.3s ease;
+        }
+
+        #userPrompt::placeholder {
+            color: var(--text-muted);
+            opacity: 0.7;
+        }
+
+        #userPrompt:focus {
+            outline: none;
+            border-color: var(--color-4);
+            box-shadow: 0 0 0 3px rgba(161, 177, 138, 0.1);
+            background: rgba(42, 51, 41, 0.8);
+        }
+
+        .prompt-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 12px;
+        }
+
+        .char-count {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .char-count.warning {
+            color: var(--error);
+            font-weight: 600;
+        }
+
+        .btn-clear {
+            padding: 6px 14px;
+            background: rgba(229, 115, 115, 0.2);
+            border: 1px solid rgba(229, 115, 115, 0.4);
+            border-radius: 6px;
+            color: #ff8a80;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 500;
+        }
+
+        .btn-clear:hover {
+            background: rgba(229, 115, 115, 0.3);
+            transform: scale(1.05);
+        }
+
+        /* Footer Styles */
+        footer {
+            background: linear-gradient(135deg, var(--color-1), var(--color-2));
+            border-top: 3px solid var(--color-4);
+            margin-top: auto;
+            box-shadow: 0 -4px 20px var(--shadow);
+        }
+
+        .footer-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 50px 30px 30px;
+        }
+
+        .footer-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            gap: 40px;
+            margin-bottom: 40px;
+        }
+
+        .footer-section h3 {
+            font-size: 18px;
+            margin-bottom: 20px;
+            color: var(--color-4);
+            font-weight: 600;
+        }
+
+        .footer-section p {
+            color: var(--text-muted);
+            line-height: 1.8;
+            margin-bottom: 20px;
+        }
+
+        .footer-links {
+            list-style: none;
+        }
+
+        .footer-links li {
+            margin-bottom: 12px;
+        }
+
+        .footer-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .footer-links a:hover {
+            color: var(--color-4);
+            transform: translateX(5px);
+        }
+
+        .social-links {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .social-link {
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-light);
+            text-decoration: none;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .social-link:hover {
+            background: var(--color-4);
+            transform: translateY(-3px);
+            box-shadow: 0 4px 15px rgba(161, 177, 138, 0.3);
+        }
+
+        .footer-bottom {
+            padding-top: 30px;
+            border-top: 1px solid rgba(161, 177, 138, 0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .copyright {
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        .footer-bottom-links {
+            display: flex;
+            gap: 25px;
+        }
+
+        .footer-bottom-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 14px;
+            transition: color 0.3s ease;
+        }
+
+        .footer-bottom-links a:hover {
+            color: var(--color-4);
+        }
+
+        @media (max-width: 1024px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .footer-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .hero-section h2 {
+                font-size: 32px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .header-container {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .nav-menu {
+                width: 100%;
+                justify-content: center;
+                flex-wrap: wrap;
+            }
+
+            .footer-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .footer-bottom {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .stats-row {
+                flex-direction: column;
+                gap: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header>
+        <div class="header-container">
+            <div class="logo-section">
+                <div class="logo">
+                    <i class="fas fa-map-marked-alt"></i>
+                </div>
+                <div class="brand-info">
+                    <h1>GIS Workflow Analyzer</h1>
+                    <p>Transform Diagrams into Intelligent Location Insights</p>
+                </div>
+            </div>
+            <nav class="nav-menu">
+                <a href="#" class="nav-btn">
+                    <i class="fas fa-home"></i>
+                    Home
+                </a>
+                <a href="#" class="nav-btn">
+                    <i class="fas fa-book"></i>
+                    Docs
+                </a>
+                <a href="#" class="nav-btn">
+                    <i class="fas fa-question-circle"></i>
+                    Help
+                </a>
+                <div class="status-indicator">
+                    <i class="fas fa-circle" style="color: var(--success);"></i>
+                    <span id="headerStatus">Online</span>
+                </div>
+            </nav>
+        </div>
+    </header>
+
+    <div class="content-wrapper">
+        <div class="container">
+            <!-- Hero Section -->
+            <section class="hero-section">
+                <div class="hero-content">
+                    <h2>AI-Powered GIS Analysis</h2>
+                    <p>Upload your workflow diagram and let our advanced AI generate optimized SQL queries and database views to identify the best locations based on your spatial criteria.</p>
+                    
+                    <div class="stats-row">
+                        <div class="stat-item">
+                            <span class="stat-number" id="analysisCount">0</span>
+                            <span class="stat-label">Analyses Today</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-number">~2min</span>
+                            <span class="stat-label">Avg. Processing</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-number">99.9%</span>
+                            <span class="stat-label">Accuracy</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <div id="alertContainer"></div>
+
+            <!-- Main Grid -->
+            <div class="main-grid">
+                <!-- Upload Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                        </div>
+                        <h2 class="card-title">Upload Workflow Diagram</h2>
+                    </div>
+
+                    <div class="upload-zone" id="uploadZone">
+                        <i class="fas fa-file-image upload-icon"></i>
+                        <div class="upload-text">Drop your workflow image here</div>
+                        <div class="upload-hint">or click to browse • PNG, JPG, TIFF • Max 16MB</div>
+                        <input type="file" id="fileInput" accept="image/*">
+                    </div>
+
+                    <div class="preview-container" id="previewContainer">
+                        <img id="previewImage" class="preview-image" alt="Workflow Preview">
+                        <div class="file-info">
+                            <div class="file-details">
+                                <i class="fas fa-file-alt" style="color: var(--color-4); font-size: 24px;"></i>
+                                <div>
+                                    <div id="fileName" style="font-weight: 600; color: var(--text-light);">filename.png</div>
+                                    <div id="fileSize" style="font-size: 13px; color: var(--text-muted);">0 KB</div>
+                                </div>
+                            </div>
+                            <button class="btn btn-secondary" id="removeBtn">
+                                <i class="fas fa-times"></i>
+                                Remove
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- User Prompt Section -->
+                    <div class="prompt-section" id="promptSection" style="display: none;">
+                        <div class="prompt-header">
+                            <i class="fas fa-comment-dots"></i>
+                            <span>Add Instructions (Optional)</span>
+                        </div>
+                        <div class="prompt-input-wrapper">
+                            <textarea 
+                                id="userPrompt" 
+                                placeholder="Describe your analysis requirements or add specific instructions...&#10;&#10;Example: 'Find locations within 5km of schools and parks' or 'Prioritize areas with low traffic density'"
+                                rows="4"
+                            ></textarea>
+                            <div class="prompt-footer">
+                                <div class="char-count">
+                                    <span id="charCount">0</span> / 1000 characters
+                                </div>
+                                <button class="btn-clear" id="clearPromptBtn">
+                                    <i class="fas fa-times-circle"></i>
+                                    Clear
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary" id="analyzeBtn" disabled style="width: 100%; margin-top: 25px; justify-content: center; font-size: 16px;">
+                        <i class="fas fa-chart-line"></i>
+                        Analyze Workflow
+                    </button>
+
+                    <div class="loading" id="loadingContainer">
+                        <div class="spinner"></div>
+                        <div style="color: var(--text-muted); font-size: 16px;">Processing your workflow diagram...</div>
+                        <div style="color: var(--text-muted); font-size: 13px; margin-top: 10px;">This may take a few moments</div>
+                    </div>
+                </div>
+
+                <!-- Results Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon">
+                            <i class="fas fa-database"></i>
+                        </div>
+                        <h2 class="card-title">Analysis Results</h2>
+                    </div>
+
+                    <div id="emptyState" class="empty-state">
+                        <i class="fas fa-inbox empty-icon"></i>
+                        <div style="font-size: 18px; margin-bottom: 8px;">No Results Yet</div>
+                        <div style="font-size: 14px;">Upload a workflow diagram to begin analysis</div>
+                    </div>
+
+                    <div class="results-container" id="resultsContainer">
+                        <div class="result-section">
+                            <div class="result-header">
+                                <i class="fas fa-code"></i>
+                                SQL Queries
+                            </div>
+                            <div id="sqlQueriesContainer"></div>
+                        </div>
+
+                        <div class="result-section">
+                            <div class="result-header">
+                                <i class="fas fa-layer-group"></i>
+                                Database Views
+                            </div>
+                            <div id="viewsContainer"></div>
+                        </div>
+
+                        <div class="result-section">
+                            <div class="result-header">
+                                <i class="fas fa-lightbulb"></i>
+                                Analysis Summary
+                            </div>
+                            <div class="analysis-text" id="analysisText"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-container">
+            <div class="footer-grid">
+                <div class="footer-section">
+                    <h3>About GIS Workflow Analyzer</h3>
+                    <p>Our AI-powered platform transforms your GIS workflow diagrams into actionable SQL queries and database views, helping you identify optimal locations with precision and efficiency.</p>
+                    <div class="social-links">
+                        <a href="#" class="social-link" title="Facebook">
+                            <i class="fab fa-facebook-f"></i>
+                        </a>
+                        <a href="#" class="social-link" title="Twitter">
+                            <i class="fab fa-twitter"></i>
+                        </a>
+                        <a href="#" class="social-link" title="LinkedIn">
+                            <i class="fab fa-linkedin-in"></i>
+                        </a>
+                        <a href="#" class="social-link" title="GitHub">
+                            <i class="fab fa-github"></i>
+                        </a>
+                        <a href="#" class="social-link" title="YouTube">
+                            <i class="fab fa-youtube"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="footer-section">
+                    <h3>Resources</h3>
+                    <ul class="footer-links">
+                        <li><a href="#"><i class="fas fa-chevron-right"></i> Documentation</a></li>
+                        <li><a href="#"><i class="fas fa-chevron-right"></i> API Reference</a></li>
+                        <li><a href="#"><i class="fas fa-chevron-right"></i> Tutorials</a></li>
+                        <li><a href="#"><i class="fas fa-chevron-right"></i> Video Guides</a></li>
+                        <li><a href="#"><i class="fas fa-chevron-right"></i> FAQ</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer-section">
+                    <h3>Support</h3>
+                    <ul class="footer-links">
+                        <li><a href="#"><i class="fas fa-chevron-right"></i> Help Center</a></li>
+                        <li><a href="#"><i class="fas fa-chevron-right"></i> Contact Us</a></li>
+                        <li><a href="#"><i class="fas fa-chevron-right"></i> Report Issue</a></li>
+                        <li><a href="#"><i class="fas fa-chevron-right"></i> System Status</a></li>
+                        <li><a href="#"><i class="fas fa-chevron-right"></i> Community</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer-section">
+                    <h3>Company</h3>
+                    <ul class="footer-links">
+                        <li><a href="#"><i class="fas fa-chevron-right"></i> About Us</a></li>
+                        <li><a href="#"><i class="fas fa-chevron-right"></i> Careers</a></li>
+                        <li><a href="#"><i class="fas fa-chevron-right"></i> Blog</a></li>
+                        <li><a href="#"><i class="fas fa-chevron-right"></i> Partners</a></li>
+                        <li><a href="#"><i class="fas fa-chevron-right"></i> Press Kit</a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="footer-bottom">
+                <div class="copyright">
+                    <p>&copy; 2024 GIS Workflow Analyzer. All rights reserved. | Powered by AI & Machine Learning</p>
+                </div>
+                <div class="footer-bottom-links">
+                    <a href="#">Privacy Policy</a>
+                    <a href="#">Terms of Service</a>
+                    <a href="#">Cookie Policy</a>
+                    <a href="#">Accessibility</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+        const previewContainer = document.getElementById('previewContainer');
+        const previewImage = document.getElementById('previewImage');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const removeBtn = document.getElementById('removeBtn');
+        const loadingContainer = document.getElementById('loadingContainer');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const emptyState = document.getElementById('emptyState');
+        const alertContainer = document.getElementById('alertContainer');
+        const sqlQueriesContainer = document.getElementById('sqlQueriesContainer');
+        const viewsContainer = document.getElementById('viewsContainer');
+        const analysisText = document.getElementById('analysisText');
+        const analysisCount = document.getElementById('analysisCount');
+        const promptSection = document.getElementById('promptSection');
+        const userPrompt = document.getElementById('userPrompt');
+        const charCount = document.getElementById('charCount');
+        const clearPromptBtn = document.getElementById('clearPromptBtn');
+
+        let selectedFile = null;
+        let count = 0;
+
+        // Character counter for prompt
+        userPrompt.addEventListener('input', () => {
+            const length = userPrompt.value.length;
+            charCount.textContent = length;
+            
+            if (length > 1000) {
+                userPrompt.value = userPrompt.value.substring(0, 1000);
+                charCount.textContent = 1000;
+            }
+            
+            if (length > 900) {
+                charCount.parentElement.classList.add('warning');
+            } else {
+                charCount.parentElement.classList.remove('warning');
+            }
+        });
+
+        // Clear prompt button
+        clearPromptBtn.addEventListener('click', () => {
+            userPrompt.value = '';
+            charCount.textContent = '0';
+            charCount.parentElement.classList.remove('warning');
+        });
+
+        // Simulate analysis count animation
+        setInterval(() => {
+            count++;
+            analysisCount.textContent = count;
+        }, 5000);
+
+        uploadZone.addEventListener('click', () => fileInput.click());
+
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileSelect(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFileSelect(e.target.files[0]);
+            }
+        });
+
+        removeBtn.addEventListener('click', () => {
+            selectedFile = null;
+            fileInput.value = '';
+            previewContainer.style.display = 'none';
+            uploadZone.style.display = 'block';
+            promptSection.style.display = 'none';
+            userPrompt.value = '';
+            charCount.textContent = '0';
+            analyzeBtn.disabled = true;
+            resultsContainer.style.display = 'none';
+            emptyState.style.display = 'block';
+        });
+
+        analyzeBtn.addEventListener('click', analyzeWorkflow);
+
+        function handleFileSelect(file) {
+            if (!file.type.startsWith('image/')) {
+                showAlert('Please select a valid image file (PNG, JPG, TIFF)', 'error');
+                return;
+            }
+
+            if (file.size > 16 * 1024 * 1024) {
+                showAlert('File size must be less than 16MB', 'error');
+                return;
+            }
+
+            selectedFile = file;
+            const reader = new FileReader();
+
+            reader.onload = (e) => {
+                previewImage.src = e.target.result;
+                fileName.textContent = file.name;
+                fileSize.textContent = formatFileSize(file.size);
+                previewContainer.style.display = 'block';
+                uploadZone.style.display = 'none';
+                promptSection.style.display = 'block';
+                analyzeBtn.disabled = false;
+            };
+
+            reader.readAsDataURL(file);
+        }
+
+        async function analyzeWorkflow() {
+            if (!selectedFile) return;
+
+            const formData = new FormData();
+            formData.append('workflow_image', selectedFile);
+            
+            // Add user prompt if provided
+            const promptText = userPrompt.value.trim();
+            if (promptText) {
+                formData.append('user_prompt', promptText);
+            }
+
+            loadingContainer.style.display = 'block';
+            analyzeBtn.disabled = true;
+            resultsContainer.style.display = 'none';
+            emptyState.style.display = 'none';
+            document.getElementById('headerStatus').textContent = 'Processing...';
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    displayResults(data);
+                    showAlert('Analysis completed successfully! Results are ready.', 'success');
+                    document.getElementById('headerStatus').textContent = 'Completed';
+                    setTimeout(() => {
+                        document.getElementById('headerStatus').textContent = 'Online';
+                    }, 3000);
+                } else {
+                    throw new Error(data.error || 'Analysis failed. Please try again.');
+                }
+            } catch (error) {
+                showAlert(error.message, 'error');
+                document.getElementById('headerStatus').textContent = 'Error';
+                setTimeout(() => {
+                    document.getElementById('headerStatus').textContent = 'Online';
+                }, 3000);
+                emptyState.style.display = 'block';
+            } finally {
+                loadingContainer.style.display = 'none';
+                analyzeBtn.disabled = false;
+            }
+        }
+
+        function displayResults(data) {
+            sqlQueriesContainer.innerHTML = '';
+            viewsContainer.innerHTML = '';
+
+            if (data.sql_queries && data.sql_queries.length > 0) {
+                data.sql_queries.forEach((query, idx) => {
+                    const block = createCodeBlock(query, `query-${idx}`);
+                    sqlQueriesContainer.appendChild(block);
+                });
+            } else {
+                sqlQueriesContainer.innerHTML = '<p style="color: var(--text-muted);">No SQL queries generated.</p>';
+            }
+
+            if (data.views && data.views.length > 0) {
+                data.views.forEach((view, idx) => {
+                    const block = createCodeBlock(view, `view-${idx}`);
+                    viewsContainer.appendChild(block);
+                });
+            } else {
+                viewsContainer.innerHTML = '<p style="color: var(--text-muted);">No database views generated.</p>';
+            }
+
+            analysisText.textContent = data.analysis || 'Analysis completed. Review the generated SQL queries and views above.';
+            resultsContainer.style.display = 'block';
+        }
+
+        function createCodeBlock(code, id) {
+            const div = document.createElement('div');
+            div.className = 'code-block';
+            div.innerHTML = `
+                <button class="copy-btn" onclick="copyCode('${id}')">
+                    <i class="fas fa-copy"></i> Copy
+                </button>
+                <pre id="${id}">${escapeHtml(code)}</pre>
+            `;
+            return div;
+        }
+
+        function copyCode(id) {
+            const code = document.getElementById(id).textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                showAlert('Code copied to clipboard!', 'success');
+            }).catch(() => {
+                showAlert('Failed to copy code', 'error');
+            });
+        }
+
+        function showAlert(message, type) {
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.innerHTML = `
+                <i class="fas fa-${type === 'error' ? 'exclamation-circle' : 'check-circle'}" style="font-size: 20px;"></i>
+                <span>${message}</span>
+            `;
+            alert.style.display = 'flex';
+            alertContainer.appendChild(alert);
+
+            setTimeout(() => {
+                alert.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => {
+                    alert.remove();
+                }, 300);
+            }, 5000);
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Add slideOut animation
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideOut {
+                to { transform: translateY(-20px); opacity: 0; }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>
