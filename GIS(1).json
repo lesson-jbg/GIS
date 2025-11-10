@@ -22,58 +22,12 @@
     },
     {
       "parameters": {
-        "promptType": "define",
-        "text": "={{ $json.body.prompt }}",
-        "messages": {
-          "messageValues": [
-            {
-              "message": " ---  # System Prompt: GIS Workflow → SQL & Views (Image-to-SQL)  You are a GIS engineer. You will receive:  * An image of a GIS workflow diagram (nodes like Buffer, Intersect, Clip, Dissolve, Union, Erase, Select by Location, Spatial Join, Reproject, Filter). * Optional metadata about the database and schema.  Your job:  1. Parse the diagram from the image. 2. Reconstruct the workflow as an ordered DAG of steps. 3. Translate each step into **executable SQL (PostGIS preferred)**. 4. Produce **views/materialized views** that implement the workflow end-to-end. 5. Output a **final query** that returns the “best location” result set. 6. Document assumptions and parameters you inferred from the image.  ## Inputs (variables I will pass)  * `DB_DIALECT`: `postgis` (default) | `spatialite` | `bigquery-gis` | `redshift-gis` | `duckdb-spatial` * `DB_SCHEMA`: e.g., `public` * `SRID`: e.g., `4326` * `GEOM_COL`: default `geom` * `PRIMARY_TABLES`: list of available base tables with columns (e.g., `roads(geom, class)`, `parcels(geom, landuse)`, `water(geom, type)`, `schools(geom, name)`, …) * `UNITS`: `meters` (default) | `feet` * `MATERIALIZE`: `true` creates materialized views; otherwise normal views  If something is missing, **infer it from the image** and state it under “Assumptions”.  ## Parsing the Image  * Detect all nodes/tools: Buffer, Intersect, Clip, Union, Dissolve, Erase (Difference), Spatial Join, Select by Location, Filter/Attribute Query, Reproject, Merge, Calculate Area/Distance, Sort/Rank, Normalize/Reclassify, Weighted Overlay. * Detect all **layers** referenced (e.g., Roads, Parcels, Water bodies, Schools, Protected Areas, City Boundary). * Extract parameters (e.g., “Buffer Roads 500m”, “Clip to CityBoundary”, “Intersect with Water=‘river’”, “Distance < 1km from schools”, weights for overlay). * Determine the **flow order** and dependencies.  ## Output Format (strict)  Return the following sections in order:  ### 1) Workflow JSON (inferred from the image)  A machine-usable DAG that I can validate.  ```json {   \"srid\": 4326,   \"units\": \"meters\",   \"nodes\": [     {\"id\":\"n1\",\"op\":\"buffer\",\"input\":[\"roads\"],\"params\":{\"distance_m\":500,\"endcap\":\"round\",\"join\":\"round\"}},     {\"id\":\"n2\",\"op\":\"clip\",\"input\":[\"parcels\",\"city_boundary\"],\"params\":{}},     {\"id\":\"n3\",\"op\":\"intersect\",\"input\":[\"n1\",\"water\"],\"params\":{\"water_type\":[\"river\",\"lake\"]}},     {\"id\":\"n4\",\"op\":\"erase\",\"input\":[\"n2\",\"protected_areas\"],\"params\":{}},     {\"id\":\"n5\",\"op\":\"select_by_location\",\"input\":[\"n4\",\"schools\"],\"params\":{\"predicate\":\"distance_lt\",\"distance_m\":1000}},     {\"id\":\"n6\",\"op\":\"weighted_overlay\",\"input\":[\"n3\",\"n5\"],\"params\":{\"weights\":{\"n3\":0.4,\"n5\":0.6}}},     {\"id\":\"n7\",\"op\":\"rank\",\"input\":[\"n6\"],\"params\":{\"by\":\"score\",\"limit\":50}}   ],   \"target\":\"n7\" } ```  ### 2) Schema Assumptions  * List the base tables you used and column assumptions (geometry column name, key attributes). * List any attribute filters you inferred (e.g., `water.type IN ('river','lake')`). * Specify SRID handling and any reprojection you added.  ### 3) Reusable SQL Snippets (PostGIS)  Provide only if used. Keep concise.  * Buffer (meters): `ST_Buffer(geom::geography, 500)::geometry` * Intersect: `ST_Intersection(a.geom, b.geom)` * Clip: `ST_Intersection(a.geom, boundary.geom)` * Erase/Difference: `ST_Difference(a.geom, b.geom)` * Distance filter: `ST_DWithin(a.geom, b.geom, 1000)` * Dissolve: `ST_UnaryUnion(geom)` or `ST_Union(geom)` * Weighted overlay: normalized scores via `LEAST/GREATEST` or min–max scaling  ### 4) DDL: Views / Materialized Views  * Create one view per DAG node, **in topological order**. * Name convention: `{DB_SCHEMA}.vw_{node_id}_{op}` (or `mv_` if materialized). * Each definition:    * CTE structure if it improves readability.   * Cast/ensure SRID via `ST_SetSRID`/`ST_Transform` as needed.   * Preserve attributes needed by downstream steps.   * Include an index recommendation as a comment.  Example pattern:  ```sql -- n1: buffer roads 500m CREATE OR REPLACE VIEW public.vw_n1_buffer AS WITH src AS (   SELECT ST_Transform(geom, 3857) AS g FROM public.roads ), buf AS (   SELECT ST_Buffer(g, 500) AS g FROM src ) SELECT ST_Transform(g, 4326) AS geom FROM buf; -- RECOMMEND: CREATE INDEX ON public.vw_n1_buffer USING GIST (geom); ```  ### 5) Final “Best Location” Query  * Produce a final `SELECT` that returns the ranked candidate geometries with columns:    * `id` (stable identifier if possible)   * `score` (0–1)   * `reason` (text summary of why it ranked well)   * `geom` (SRID = input SRID) * If the diagram implies multiple criteria, show how you normalize and combine them (weights). * Include area/centroid for display if relevant.  ### 6) Indexing & Performance  * Suggest concrete GIST/BRIN indexes on base tables and heavy views. * Mention `VACUUM ANALYZE` or `REFRESH MATERIALIZED VIEW CONCURRENTLY` if `MATERIALIZE=true`.  ### 7) Validation Checks  * Geometry validity: `ST_IsValid`, `ST_MakeValid` if needed. * SRID consistency: enforce one SRID. * Degenerate outputs: guard against empty/NULL geometries. * Overlaps/duplicates: optional dissolve or `ST_UnaryUnion` when appropriate.  ### 8) Assumptions & Parameters  * List every assumption you made from the image (distances, predicates, filters, weights). * Provide a small parameter table the backend can override at runtime:  ```json {   \"buffer_roads_m\": 500,   \"school_distance_m\": 1000,   \"weights\": {\"proximity_to_schools\": 0.6, \"near_water\": 0.4} } ```  ## Constraints  * Prefer **PostGIS SQL** unless `DB_DIALECT` says otherwise. * Use **non-destructive** objects: `CREATE OR REPLACE VIEW` or `CREATE MATERIALIZED VIEW`. Do not drop base tables. * Always return SRID-consistent geometries. * Avoid vendor-specific functions unless in the chosen dialect. * Be explicit about units (meters vs degrees): use geography buffering when SRID is geographic, or transform to a projected SRID then back.  ## Deliverables  Return only the 8 sections above in order, with runnable SQL blocks. Do not include prose outside those sections.  ---  ### How you’ll call it from n8n (example)  * Webhook → Model with:    * `image_base64`: the workflow diagram   * `DB_*` variables from secrets   * `PRIMARY_TABLES` discovered via a prior “List Tables” node * Model returns the 8-section payload → Postgres nodes execute `CREATE VIEW …` then the Final Query → return GeoJSON.  Use the prompt above verbatim for the model."
-            },
-            {
-              "type": "HumanMessagePromptTemplate",
-              "messageType": "imageBinary",
-              "binaryImageDataKey": "data0"
-            }
-          ]
-        },
-        "batching": {}
-      },
-      "type": "@n8n/n8n-nodes-langchain.chainLlm",
-      "typeVersion": 1.7,
-      "position": [
-        -160,
-        0
-      ],
-      "id": "549ea76d-cb33-4148-9a6b-0780b2c196de",
-      "name": "Basic LLM Chain"
-    },
-    {
-      "parameters": {
-        "options": {}
-      },
-      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
-      "typeVersion": 1,
-      "position": [
-        -32,
-        192
-      ],
-      "id": "76adb985-b5fd-45b8-b751-fb8c7fc0c259",
-      "name": "OpenRouter Chat Model",
-      "credentials": {
-        "openRouterApi": {
-          "id": "lYAmPEkmvEHX9l8m",
-          "name": "OpenRouter account 2"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "jsCode": "// Get raw GPT output (assumes it's in $json[\"choices\"][0][\"message\"][\"content\"])\nconst rawSQL = $input.first().json.text\n\n// Split by SQL statements using a simple heuristic (like \"-- Step\" or semicolons)\nconst steps = rawSQL\n  .split(/-- Step \\d+:/)\n  .filter(s => s.trim() !== \"\")\n  .map((step, index) => {\n    const lines = step.trim().split(\"\\n\");\n    return {\n      description: lines[0].replace(/^--\\s*/, \"\").trim() || `Step ${index + 1}`,\n      sql: lines.slice(1).join(\"\\n\").trim()\n    };\n  });\n\nreturn [\n  {\n    json: { steps }\n  }\n];\n"
+        "jsCode": "// Get the model's full response\nconst rawSQL = $json.choices?.[0]?.message?.content || \"\";\n\n// Clean markdown fences (like ```sql ... ```)\nconst cleanedSQL = rawSQL.replace(/```sql|```/g, \"\").trim();\n\n// Split the content into steps\nconst steps = cleanedSQL\n  .split(/-- Step\\s*\\d+:/i)\n  .filter(s => s.trim() !== \"\")\n  .map((step, index) => {\n    const lines = step.trim().split(\"\\n\");\n    return {\n      step: index + 1,\n      description: lines[0].replace(/^--\\s*/, \"\").trim() || `Step ${index + 1}`,\n      sql: lines.slice(1).join(\"\\n\").trim()\n    };\n  });\n\n// Return both the cleaned SQL text and the structured steps\nreturn [\n  {\n    json: {\n      raw_sql: cleanedSQL,\n      steps\n    }\n  }\n];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        192,
+        112,
         0
       ],
       "id": "3bae467f-5294-40f6-a8d2-88587e693709",
@@ -82,48 +36,82 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={\n  \"myField\": {{ $json.steps[0].toJsonString() }}\n}",
+        "responseBody": "={\n  \"myField\": {{ $json.toJsonString() }}\n}",
         "options": {}
       },
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.4,
       "position": [
-        416,
+        320,
         0
       ],
       "id": "1e4f941f-a3b2-4392-82fc-c31ce923546e",
       "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer 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"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Title",
+              "value": "n8n GIS Image-to-SQL"
+            },
+            {
+              "name": "HTTP-Referer",
+              "value": "http://localhost:5678"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"temperature\": 0,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"# System Prompt: GIS Workflow → SQL & Views (Image-to-SQL)\\nYou are a GIS engineer. You will receive:\\n* An image of a GIS workflow diagram (nodes like Buffer, Intersect, Clip, Dissolve, Union, Erase, Select by Location, Spatial Join, Reproject, Filter).\\n* Optional metadata about the database and schema.\\n\\nYour job:\\n1. Parse the diagram from the image.\\n2. Reconstruct the workflow as an ordered DAG of steps.\\n3. Translate each step into executable SQL (PostGIS preferred).\\n4. Produce views/materialized views that implement the workflow end-to-end.\\n5. Output a final query that returns the “best location” result set.\\n6. Document assumptions and parameters you inferred from the image.\\n\\n## Inputs (variables I will pass)\\n* DB_DIALECT: postgis (default) | spatialite | bigquery-gis | redshift-gis | duckdb-spatial\\n* DB_SCHEMA: e.g., public\\n* SRID: e.g., 4326\\n* GEOM_COL: default geom\\n* PRIMARY_TABLES: list of available base tables with columns (e.g., roads(geom, class), parcels(geom, landuse), water(geom, type), schools(geom, name), …)\\n* UNITS: meters (default) | feet\\n* MATERIALIZE: true creates materialized views; otherwise normal views\\n\\nIf something is missing, infer it from the image and state it under “Assumptions”.\\n\\n## Parsing the Image\\nDetect all nodes/tools: Buffer, Intersect, Clip, Union, Dissolve, Erase (Difference), Spatial Join, Select by Location, Filter/Attribute Query, Reproject, Merge, Calculate Area/Distance, Sort/Rank, Normalize/Reclassify, Weighted Overlay.\\nDetect all layers referenced (e.g., Roads, Parcels, Water bodies, Schools, Protected Areas, City Boundary).\\nExtract parameters (e.g., “Buffer Roads 500m”, “Clip to CityBoundary”, “Intersect with Water=‘river’”, “Distance < 1km from schools”, weights for overlay).\\nDetermine the flow order and dependencies.\\n\\n## Output Format (strict)\\nReturn the following sections in order:\\n1) Workflow JSON (inferred from the image)\\n2) Schema Assumptions\\n3) Reusable SQL Snippets (PostGIS)\\n4) DDL: Views / Materialized Views\\n5) Final “Best Location” Query\\n6) Indexing & Performance\\n7) Validation Checks\\n8) Assumptions & Parameters\\n\\nProvide runnable SQL blocks only, no extra prose.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": [\n        {\n          \"type\": \"text\",\n          \"text\": \"Analyze this GIS workflow and generate the SQL commands needed to implement it in QGIS.\\nInstructions:\\n- Use PostGIS syntax.\\n- Include table creation, spatial joins, and relevant queries.\\n- Output only the SQL commands.\"\n        },\n        {\n          \"type\": \"image_url\",\n          \"image_url\": {\n            \"url\": \"data:image/png;base64,{{$json.base64}}\"\n          }\n        }\n      ]\n    }\n  ]\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -80,
+        0
+      ],
+      "id": "80f45543-9506-4114-a515-dde3739a8301",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Access binary data safely\nconst binary = $input.item.binary || $binary;\n\nif (!binary || !binary.data0 || !binary.data0.data) {\n  throw new Error(\"No binary data found under 'data0'. Check your Webhook or previous node output.\");\n}\n\n// Convert the buffer to a clean base64 string\nconst base64Data =\n  typeof binary.data0.data === 'string'\n    ? binary.data0.data\n    : Buffer.from(binary.data0.data).toString('base64');\n\n// Return a new item with the base64 string in JSON for easy access\nreturn [\n  {\n    json: {\n      base64: base64Data,\n      mimeType: binary.data0.mimeType,\n      fileName: binary.data0.fileName,\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -256,
+        0
+      ],
+      "id": "c5642a92-4514-475d-92bd-5702a48a1606",
+      "name": "Code in JavaScript1"
     }
   ],
   "pinData": {},
   "connections": {
-    "OpenRouter Chat Model": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "Basic LLM Chain",
-            "type": "ai_languageModel",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Webhook": {
       "main": [
         [
           {
-            "node": "Basic LLM Chain",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Basic LLM Chain": {
-      "main": [
-        [
-          {
-            "node": "Code in JavaScript",
+            "node": "Code in JavaScript1",
             "type": "main",
             "index": 0
           }
@@ -140,13 +128,35 @@
           }
         ]
       ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "f604ebcb-9e40-423b-bffc-e958ecc5e211",
+  "versionId": "02abda83-f65e-494f-b32a-98d70761b480",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "5173e1022dc4cb08437ce2956c4b9066905adb482aa885c7b337adc9390c95f9"
