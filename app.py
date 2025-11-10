@@ -16,7 +16,7 @@ st.set_page_config(
 # ============================================
 # CONFIGURATION
 # ============================================
-N8N_WEBHOOK_URL = "https://1234abcd.ngrok.io/webhook/recevie-image"
+N8N_WEBHOOK_URL = "https://donnette-sheeplike-echo.ngrok-free.dev/webhook/recevie-image"
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'tiff'}
 MAX_FILE_SIZE_MB = 16
@@ -303,4 +303,5 @@ st.markdown("""
     <p style='font-size: 1.1em;'><strong>🗺️ GIS Workflow Analyzer</strong></p>
     <p style='font-size: 0.95em;'>Powered by AI & Machine Learning | Transform diagrams into intelligent spatial insights</p>
 </div>
+
 """, unsafe_allow_html=True)
