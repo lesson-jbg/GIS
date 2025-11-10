@@ -16,7 +16,7 @@ st.set_page_config(
 # ============================================
 # CONFIGURATION
 # ============================================
-N8N_WEBHOOK_URL = "http://localhost:5678/webhook-test/recevie-image"
+N8N_WEBHOOK_URL = "http://localhost:5678/webhook/recevie-image"
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'tiff'}
 MAX_FILE_SIZE_MB = 16
 
